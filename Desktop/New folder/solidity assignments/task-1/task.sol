@@ -9,9 +9,14 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
 
 contract PToken is ERC20, Ownable {
+    event CheckOwner(address);
+    uint256 maxSupply;
     constructor() ERC20("PToken", "PTK") {
+        maxSupply = 100000;
     }
+   
     function mint(uint256 amount) public {
+        require(totalSupply()+amount <= maxSupply, "Minting Limit Exceeded!");
         _mint(msg.sender, amount);
     }
 }
@@ -26,7 +31,6 @@ struct PhasePrice  {
 contract MyToken is ERC721, Ownable {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIdCounter;
-
     PToken tokenContract;
     uint256 private _WhitelistPhase;
     uint256 private _PresalePhase;
@@ -36,7 +40,6 @@ contract MyToken is ERC721, Ownable {
 
     constructor(PToken _tokenContract) ERC721("NFT", "NFT") {
         tokenContract=_tokenContract;
-
         _WhitelistPhase = block.timestamp + 7 days;
         _PresalePhase = _WhitelistPhase + 7 days;
         _SalePhase = _PresalePhase + 7 days ;
@@ -79,4 +82,10 @@ contract MyToken is ERC721, Ownable {
         _tokenIdCounter.increment();
         _safeMint(msg.sender, tokenId);
     }
+
+    function withdraw() payable public onlyOwner{
+        payable(owner()).transfer(address(this).balance);
+        tokenContract.transfer(owner(), tokenContract.balanceOf(address(this)));
+    }
+    
 }
