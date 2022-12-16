@@ -9,8 +9,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
 
 contract PToken is ERC20, Ownable {
-    event CheckOwner(address);
-    uint256 maxSupply;
+    uint256 private maxSupply;
     constructor() ERC20("PToken", "PTK") {
         maxSupply = 100000;
     }
@@ -31,6 +30,8 @@ struct PhasePrice  {
 contract MyToken is ERC721, Ownable {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIdCounter;
+
+    uint8 reentrancyCheck = 0;
     PToken tokenContract;
     uint256 private _WhitelistPhase;
     uint256 private _PresalePhase;
@@ -39,7 +40,7 @@ contract MyToken is ERC721, Ownable {
     mapping(string => mapping(address=>uint256)) _phaseMintngs;
 
     constructor(PToken _tokenContract) ERC721("NFT", "NFT") {
-        tokenContract=_tokenContract;
+        tokenContract =_tokenContract;
         _WhitelistPhase = block.timestamp + 7 days;
         _PresalePhase = _WhitelistPhase + 7 days;
         _SalePhase = _PresalePhase + 7 days ;
@@ -63,6 +64,7 @@ contract MyToken is ERC721, Ownable {
         if(_getPrice().priceInEth==0.1 ether) return  "WHITELIST";
         else if(_getPrice().priceInEth==0.2 ether) return  "PRESALE";
         else if(_getPrice().priceInEth==0.25 ether) return  "SALE";
+        else{revert("Sale Ended!");}
     }
 
     modifier mintChecker(){
@@ -70,13 +72,18 @@ contract MyToken is ERC721, Ownable {
             require(tokenContract.allowance(msg.sender, address(this)) >= _getPrice().priceInToken, "Insufficient Ethers / Token Allowance!");
             tokenContract.transferFrom(msg.sender, address(this), _getPrice().priceInToken);
         }
-        _;
-    }
-    modifier reentrancy(){
         require(_phaseMintngs[_getCurrentPhase()][msg.sender] == 0, "Already Minted!");
-        _phaseMintngs[_getCurrentPhase()][msg.sender] =1;
+        _phaseMintngs[_getCurrentPhase()][msg.sender] = 1;
         _;
     }
+
+    modifier reentrancy(){
+        require(reentrancyCheck ==0,"Reentrancy Attack!");
+        reentrancyCheck=1;
+        _;
+        reentrancyCheck=0;
+    }
+
     function buy() public mintChecker reentrancy  payable {
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
